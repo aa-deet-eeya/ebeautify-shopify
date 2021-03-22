@@ -4,8 +4,11 @@ import "isomorphic-fetch";
 import createShopifyAuth, { verifyRequest } from "@shopify/koa-shopify-auth";
 import Shopify, { ApiVersion } from "@shopify/shopify-api";
 import Koa from "koa";
+import koaBody from "koa-body";
 import next from "next";
 import Router from "koa-router";
+import mongoose from "mongoose";
+import emailTemplate from "./models/emailTemplate";
 
 dotenv.config();
 const port = parseInt(process.env.PORT, 10) || 8081;
@@ -29,6 +32,21 @@ Shopify.Context.initialize({
 // Storing the currently active shops in memory will force them to re-login when your server restarts. You should
 // persist this object in your app.
 const ACTIVE_SHOPIFY_SHOPS = {};
+
+const uri = process.env.MONGO_URI;
+mongoose
+  .connect(uri, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    console.log("DB connected");
+  })
+  .catch((err) => {
+    console.log("DB Not Connected", err);
+  });
+
+// app.use(koaBody());
 
 app.prepare().then(async () => {
   const server = new Koa();
@@ -90,6 +108,52 @@ app.prepare().then(async () => {
 
   router.post("/graphql", verifyRequest(), async (ctx, next) => {
     await Shopify.Utils.graphqlProxy(ctx.req, ctx.res);
+  });
+
+  router.get("/templates", async (ctx) => {
+    try {
+      const all = await emailTemplate.find();
+      ctx.body = {
+        success: true,
+        error: null,
+        templates: all,
+      };
+    } catch (err) {
+      console.log(err);
+      ctx.body = {
+        success: false,
+        error: "Server error",
+        desc: err,
+      };
+    }
+  });
+
+  router.post("/save", koaBody(), async (ctx) => {
+    try {
+      const { template, name } = ctx.request.body;
+      const nameExists = await emailTemplate.find({ name });
+      if (nameExists.length > 0) {
+        ctx.body = {
+          success: false,
+          error: "Name already exists",
+        };
+      } else {
+        const email = new emailTemplate({ name, template });
+        await email.save();
+        ctx.body = {
+          success: true,
+          error: "Saved afterwards",
+          desc: "Email Template Saved",
+        };
+      }
+    } catch (err) {
+      console.log(err);
+      ctx.body = {
+        success: false,
+        error: "Server Error",
+        desc: err,
+      };
+    }
   });
 
   router.get("(/_next/static/.*)", handleRequest); // Static content is clear
