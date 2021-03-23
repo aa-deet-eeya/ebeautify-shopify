@@ -135,7 +135,7 @@ app.prepare().then(async () => {
       if (nameExists.length > 0) {
         ctx.body = {
           success: false,
-          error: "Name already exists",
+          error: "Name already exists!!! Not Saved",
         };
       } else {
         const email = new emailTemplate({ name, template });
@@ -143,6 +143,33 @@ app.prepare().then(async () => {
         ctx.body = {
           success: true,
           error: "Saved afterwards",
+          desc: "Email Template Saved",
+        };
+      }
+    } catch (err) {
+      console.log(err);
+      ctx.body = {
+        success: false,
+        error: "Server Error",
+        desc: err,
+      };
+    }
+  });
+
+  router.post("/edit", koaBody(), async (ctx) => {
+    try {
+      const { template, name } = ctx.request.body;
+      const nameExists = await emailTemplate.find({ name });
+      if (nameExists.length === 0) {
+        ctx.body = {
+          success: false,
+          error: "Template does not Exist!!! Pls Save as New Template",
+        };
+      } else {
+        await emailTemplate.findOneAndUpdate({ name }, { template });
+        ctx.body = {
+          success: true,
+          error: "Saved successfully",
           desc: "Email Template Saved",
         };
       }

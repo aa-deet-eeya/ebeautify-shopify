@@ -1,15 +1,14 @@
-import { Heading, Page, Button } from "@shopify/polaris";
+import { Heading, Page, Button, ButtonGroup } from "@shopify/polaris";
 import Link from "next/link";
 
 const Index = () => (
   <Page>
-    <Heading>Shopify app with Node and React 🎉</Heading>
-    <Link href="/404">
-      <Button>Goto Somewhere</Button>
-    </Link>
-    <Link href="/editor">
-      <Button>Goto Editor</Button>
-    </Link>
+    <Heading>Make your custom Emails using ebeautify</Heading>
+    <ButtonGroup>
+      <Link href="/editor">
+        <Button>Goto Editor and start creating!!!!</Button>
+      </Link>
+    </ButtonGroup>
   </Page>
 );
 

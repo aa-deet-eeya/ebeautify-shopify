@@ -7,13 +7,13 @@ import {
   Toast,
   Card,
   Frame,
+  ButtonGroup,
+  Spinner,
 } from "@shopify/polaris";
 import React, { useEffect, useRef, useState } from "react";
 
 import EmailEditor from "react-email-editor";
-import Navbar from "../components/Navbar";
 import axios from "axios";
-import SaveTemplate from "../components/SaveTemplate";
 
 const designInit = {
   counters: {},
@@ -29,13 +29,35 @@ const EmailEditorComp = () => {
   const [clickHTML, setClickHTML] = useState(true);
   const [active, setActive] = useState(false);
   const [showToast, setShowToast] = useState(false);
-
-  const [templateObj, setTemplateObj] = useState({});
+  const [activeExport, setactiveExport] = useState(false);
+  const [emptyName, setEmptyName] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [msg, setMessage] = useState("");
+  const [name, setName] = useState("");
+  const [viewTemp, setViewTemp] = useState(false);
+  const [tempData, setTempData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [templatedId, setTemplatedId] = useState("");
 
   useEffect(() => {
     if (clickHTML) setDisplay(htmlExport.html);
     else setDisplay(JSON.stringify(htmlExport.design));
   }, [clickHTML, htmlExport]);
+
+  useEffect(() => {
+    setLoading(true);
+    axios
+      .get("/templates")
+      .then((res) => {
+        console.log(res.data);
+        if (res.data.success) setTempData(res.data.templates);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.log(err);
+        setLoading(false);
+      });
+  }, [viewTemp]);
 
   const onClickButton = (clickOnHTML) => {
     clickOnHTML ? setClickHTML(true) : setClickHTML(false);
@@ -44,7 +66,6 @@ const EmailEditorComp = () => {
   const exportHtml = () => {
     emailEditorRef.current.editor.exportHtml((data) => {
       setHtmlExport(data);
-      // setActive(true);
     });
   };
 
@@ -56,12 +77,6 @@ const EmailEditorComp = () => {
   const handleChange = () => {
     setActive(!active);
   };
-  // const { template, exportHtml } = this.props;
-  const [activeExport, setactiveExport] = useState(false);
-  const [emptyName, setEmptyName] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [msg, setMessage] = useState("");
-  const [name, setName] = useState("");
 
   const savetemp = () => {
     if (name == "") setEmptyName(true);
@@ -100,40 +115,51 @@ const EmailEditorComp = () => {
     setName(newValue);
   };
 
-  const [viewTemp, setViewTemp] = useState(false);
-  const [tempData, setTempData] = useState([]);
   const changeTemp = () => {
     setViewTemp(!viewTemp);
   };
 
-  useEffect(() => {
-    axios
-      .get("/templates")
-      .then((res) => {
-        console.log(res.data);
-        if (res.data.success) setTempData(res.data.templates);
-      })
-      .catch((err) => console.log(err));
-  }, [viewTemp]);
-
-  const LoadTemplate = (template) => {
+  const LoadTemplate = ({ _id, name, template }) => {
     console.log(template);
     if (
       confirm(
-        "Are You Sure You want to load this template? You will lose all your progress"
+        "Are You Sure You want to load this template? You will lose all your current progress"
       )
     ) {
-      setLoadtemp(template);
+      // setLoadtemp(template);
+      setTemplatedId(_id);
       emailEditorRef.current.editor.loadDesign(template);
+      setName(name);
       setViewTemp(false);
     }
   };
 
-  const [loadtemp, setLoadtemp] = useState({});
+  const save = () => {
+    exportHtml();
+    const templateObj = { name, template: htmlExport.design };
+    console.log(templateObj);
+    axios
+      .post("/edit", templateObj)
+      .then((res) => {
+        console.log(res.data);
+        if (res.data.success) {
+          setSent(true);
+          setMessage("Successfully saved!!");
+        } else {
+          setSent(true);
+          setMessage(`Error : ${res.data.error}`);
+        }
+        setactiveExport(false);
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+    setactiveExport(false);
+  };
 
   const onLoad = () => {
-    if (JSON.stringify(loadtemp) !== "")
-      emailEditorRef.current.editor.loadDesign(loadtemp);
+    // if (JSON.stringify(loadtemp) !== "")
+    //   emailEditorRef.current.editor.loadDesign(loadtemp);
   };
 
   return (
@@ -157,11 +183,15 @@ const EmailEditorComp = () => {
         >
           <Modal.Section>
             <div style={{ display: "flex" }}>
-              <Button onClick={() => onClickButton(true)}>Show HTML</Button>
-              <Button onClick={() => onClickButton(false)}>Show JSON</Button>
+              <ButtonGroup>
+                <Button onClick={() => onClickButton(true)}>Show HTML</Button>
+                <Button onClick={() => onClickButton(false)}>Show JSON</Button>
+              </ButtonGroup>
             </div>
             <TextContainer>
-              <div style={{ height: "450px", overflow: "auto" }}>
+              <div
+                style={{ height: "450px", overflow: "auto", margin: "10px 0" }}
+              >
                 <p>{display}</p>
               </div>
               {showToast && (
@@ -174,22 +204,6 @@ const EmailEditorComp = () => {
             </TextContainer>
           </Modal.Section>
         </Modal>
-        <Button
-          onClick={() => {
-            exportHtml();
-            setActive(true);
-          }}
-        >
-          Export HTML/JSON
-        </Button>
-        <Button
-          onClick={() => {
-            exportHtml();
-            setactiveExport(true);
-          }}
-        >
-          Save as Template
-        </Button>
         <Modal
           open={activeExport}
           onClose={handleExportModal}
@@ -227,22 +241,64 @@ const EmailEditorComp = () => {
             onDismiss={() => setSent(false)}
           />
         )}
-        <Button onClick={changeTemp}>Load a Template</Button>
         <Modal open={viewTemp} onClose={changeTemp} title="All Saved Templates">
           <Modal.Section>
-            <div style={{ maxHeight: "500px", overflow: "auto" }}>
-              {tempData.length > 0 &&
-                tempData.map((temp) => (
-                  <Button
-                    onClick={() => LoadTemplate(temp.template)}
-                    key={temp._id}
-                  >
-                    {temp.name}
-                  </Button>
-                ))}
-            </div>
+            {loading ? (
+              <div
+                style={{
+                  width: "100%",
+                  margin: "40px 0",
+                  display: "flex",
+                  justifyContent: "center",
+                }}
+              >
+                <Spinner size="large" />
+              </div>
+            ) : (
+              <div style={{ maxHeight: "500px", overflow: "auto" }}>
+                <ButtonGroup>
+                  {tempData.length > 0 ? (
+                    tempData.map((temp) => (
+                      <Button onClick={() => LoadTemplate(temp)} key={temp._id}>
+                        {temp.name}
+                      </Button>
+                    ))
+                  ) : (
+                    <p>No Templates Saved</p>
+                  )}
+                </ButtonGroup>
+              </div>
+            )}
           </Modal.Section>
         </Modal>
+        <div
+          style={{
+            padding: "10px 0",
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
+          <ButtonGroup>
+            <Button
+              onClick={() => {
+                exportHtml();
+                setActive(true);
+              }}
+            >
+              Export HTML/JSON
+            </Button>
+            <Button
+              onClick={() => {
+                exportHtml();
+                setactiveExport(true);
+              }}
+            >
+              Save as New Template
+            </Button>
+            <Button onClick={changeTemp}>Load a Template</Button>
+          </ButtonGroup>
+          {templatedId && <Button onClick={save}>Save</Button>}
+        </div>
         <EmailEditor ref={emailEditorRef} onLoad={onLoad} minHeight={700} />
       </Page>
     </Frame>
